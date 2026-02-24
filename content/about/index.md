@@ -62,4 +62,4 @@ ctaText: "Coming soon - CV"
 cvUrl: "[CV_RELATIVE_PATH_OR_URL]"
 ---
 
-Kỹ năng mềm: TeamWork, giao tiếp, tư dư logic, xử lý tình huống, tự học, Leader.
+Kỹ năng mềm: TeamWork, giao tiếp, tư duy logic, xử lý tình huống, tự học, Leader.
