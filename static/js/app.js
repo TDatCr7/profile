@@ -18,6 +18,7 @@
     if (!audio) return;
     safeSet(KEY_TIME, String(audio.currentTime || 0));
   }
+
   function readTime() {
     const v = parseFloat(safeGet(KEY_TIME, "0") || "0");
     return Number.isFinite(v) ? v : 0;
@@ -37,9 +38,11 @@
     document.documentElement.setAttribute("data-theme", theme);
     safeSet(KEY_THEME, theme);
   }
+
   function getTheme() {
     return safeGet(KEY_THEME, "dark") || "dark";
   }
+
   function updateThemeUI(btn, icon) {
     const theme = document.documentElement.getAttribute("data-theme") || "dark";
     const isLight = theme === "light";
@@ -49,6 +52,7 @@
 
   // ---------- toast ----------
   let toastTimer = 0;
+
   function ensureToast() {
     let t = document.getElementById("toast");
     if (t) return t;
@@ -259,103 +263,20 @@
     });
   }
 
-  // ---------- PJAX ----------
-  function initPJAX({ playNow, pauseNow, getStartedBy, setStartedBy }) {
-    const main = document.getElementById("appMain");
-    if (!main) return;
-
-    function sameOrigin(url) {
-      try { return url.origin === window.location.origin; } catch (_) { return false; }
-    }
-
-    function shouldHandleLink(a) {
-      if (!a) return false;
-      if (!a.hasAttribute("data-nav")) return false;
-      if (a.target && a.target !== "_self") return false;
-
-      const href = a.getAttribute("href") || "";
-      if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return false;
-
-      const u = new URL(href, window.location.href);
-      if (!sameOrigin(u)) return false;
-
-      return true;
-    }
-
-    async function loadPage(url, { push = true } = {}) {
-      const u = new URL(url, window.location.href);
-
-      let html = "";
-      try {
-        const res = await fetch(u.href, { method: "GET", headers: { "X-Requested-With": "pjax" } });
-        html = await res.text();
-      } catch (_) {
-        window.location.href = u.href;
-        return;
-      }
-
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const nextMain = doc.getElementById("appMain");
-      if (!nextMain) { window.location.href = u.href; return; }
-
-      main.innerHTML = nextMain.innerHTML;
-
-      if (doc.title) document.title = doc.title;
-      document.body.setAttribute("data-path", u.pathname);
-
-      updateActiveNav();
-
-      if (push) history.pushState({ pjax: true }, "", u.pathname + u.search + u.hash);
-      window.scrollTo(0, 0);
-
-      if (!isAboutPath(u.pathname) && getStartedBy() === "about") {
-        pauseNow();
-        setStartedBy(null);
-      }
-    }
-
-    document.addEventListener("click", function (ev) {
-      const a = ev.target && ev.target.closest ? ev.target.closest("a") : null;
-      if (!shouldHandleLink(a)) return;
-
-      ev.preventDefault();
-
-      const href = a.getAttribute("href");
-      const u = new URL(href, window.location.href);
-
-      if (isAboutPath(u.pathname)) {
-        safeSSSet(SS_ABOUT_CLICK, "1");
-
-        // Gọi play trong user gesture, nhưng KHÔNG await
-        playNow("about").catch(() => { });
-      }
-
-      // Luôn chuyển trang ngay, không chờ audio
-      loadPage(u.href, { push: true });
-    });
-
-    window.addEventListener("popstate", function () {
-      loadPage(window.location.href, { push: false });
-    });
-
-    const p = getPath();
-    const clicked = safeSSGet(SS_ABOUT_CLICK, "0") === "1";
-    if (isAboutPath(p) && clicked) {
-      safeSSDel(SS_ABOUT_CLICK);
-      playNow("about").catch(() => { });
-    }
-  }
-
   // ---------- CONTACT (EmailJS + notify + reply_to/from_name fill) ----------
   function initContactFeature() {
     function qs(el, sel) { return el ? el.querySelector(sel) : null; }
 
     function ensureEmailJs(publicKey) {
       if (typeof emailjs === "undefined") return false;
-      try { emailjs.init({ publicKey }); return true; } catch (_) { return false; }
+      try {
+        emailjs.init({ publicKey });
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
 
-    // Copy email button (LEFT)
     document.addEventListener("click", async function (e) {
       const btn = e.target && e.target.closest ? e.target.closest("[data-copy-email]") : null;
       if (!btn) return;
@@ -377,9 +298,10 @@
       }
     });
 
-    // Submit form (RIGHT)
     document.addEventListener("submit", async function (ev) {
-      const form = ev.target && ev.target.matches ? (ev.target.matches("[data-contact-form]") ? ev.target : null) : null;
+      const form = ev.target && ev.target.matches
+        ? (ev.target.matches("[data-contact-form]") ? ev.target : null)
+        : null;
       if (!form) return;
 
       ev.preventDefault();
@@ -397,7 +319,6 @@
       const email = (emailEl ? emailEl.value : "").trim();
       const subject = (titleEl ? titleEl.value : "").trim();
 
-      // IMPORTANT: fill hidden variables để EmailJS template nhận được
       const replyToEl = qs(form, 'input[name="reply_to"]');
       const fromNameEl = qs(form, 'input[name="from_name"]');
       if (replyToEl) replyToEl.value = email;
@@ -408,7 +329,6 @@
 
       showToast("info", "Đang gửi...", 1400);
 
-      // 1) EmailJS
       if (to && serviceId && templateId && publicKey && ensureEmailJs(publicKey)) {
         try {
           await emailjs.sendForm(serviceId, templateId, form);
@@ -427,7 +347,6 @@
         return;
       }
 
-      // 2) mailto fallback
       if (!to) {
         showToast("error", "Thiếu email nhận (Params.email).", 4200);
         if (submitBtn) submitBtn.disabled = false;
@@ -445,6 +364,8 @@
       if (submitBtn) submitBtn.disabled = false;
     });
   }
+
+  // ---------- MOBILE DRAWER ----------
   function initMobileDrawer() {
     const btn = document.getElementById("mobMenuBtn");
     const drawer = document.getElementById("mobDrawer");
@@ -474,13 +395,120 @@
     });
 
     closeEls.forEach((el) => el.addEventListener("click", close));
-
-    // bấm vào link trong menu thì đóng drawer (để không che màn hình)
     navLinks.forEach((a) => a.addEventListener("click", close));
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") close();
     });
+  }
+
+  // ---------- PJAX ----------
+  function initPJAX({ playNow, pauseNow, getStartedBy, setStartedBy, showToast }) {
+    const main = document.getElementById("appMain");
+    if (!main) return;
+
+    function sameOrigin(url) {
+      try {
+        return url.origin === window.location.origin;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function shouldHandleLink(a) {
+      if (!a) return false;
+      if (!a.hasAttribute("data-nav")) return false;
+      if (a.target && a.target !== "_self") return false;
+
+      const href = a.getAttribute("href") || "";
+      if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return false;
+
+      const u = new URL(href, window.location.href);
+      if (!sameOrigin(u)) return false;
+
+      return true;
+    }
+
+    async function loadPage(url, { push = true } = {}) {
+      const u = new URL(url, window.location.href);
+
+      let html = "";
+      try {
+        const res = await fetch(u.href, {
+          method: "GET",
+          headers: { "X-Requested-With": "pjax" }
+        });
+        html = await res.text();
+      } catch (_) {
+        window.location.href = u.href;
+        return;
+      }
+
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const nextMain = doc.getElementById("appMain");
+      if (!nextMain) {
+        window.location.href = u.href;
+        return;
+      }
+
+      main.innerHTML = nextMain.innerHTML;
+
+      if (doc.title) document.title = doc.title;
+      document.body.setAttribute("data-path", u.pathname);
+
+      updateActiveNav();
+
+      if (push) history.pushState({ pjax: true }, "", u.pathname + u.search + u.hash);
+      window.scrollTo(0, 0);
+
+      const clickedAbout = safeSSGet(SS_ABOUT_CLICK, "0") === "1";
+      if (isAboutPath(u.pathname) && clickedAbout) {
+        safeSSDel(SS_ABOUT_CLICK);
+        playNow("about").then((ok) => {
+          if (!ok) {
+            showToast("info", "iPhone chặn tự phát. Chạm nút nhạc để phát.", 2600);
+          }
+        });
+      }
+
+      if (!isAboutPath(u.pathname) && getStartedBy() === "about") {
+        pauseNow();
+        setStartedBy(null);
+      }
+    }
+
+    document.addEventListener("click", function (ev) {
+      const a = ev.target && ev.target.closest ? ev.target.closest("a") : null;
+      if (!shouldHandleLink(a)) return;
+
+      ev.preventDefault();
+
+      const href = a.getAttribute("href");
+      const u = new URL(href, window.location.href);
+
+      if (isAboutPath(u.pathname)) {
+        safeSSSet(SS_ABOUT_CLICK, "1");
+      } else {
+        safeSSDel(SS_ABOUT_CLICK);
+      }
+
+      loadPage(u.href, { push: true });
+    });
+
+    window.addEventListener("popstate", function () {
+      loadPage(window.location.href, { push: false });
+    });
+
+    const p = getPath();
+    const clicked = safeSSGet(SS_ABOUT_CLICK, "0") === "1";
+    if (isAboutPath(p) && clicked) {
+      safeSSDel(SS_ABOUT_CLICK);
+      playNow("about").then((ok) => {
+        if (!ok) {
+          showToast("info", "iPhone chặn tự phát. Chạm nút nhạc để phát.", 2600);
+        }
+      });
+    }
   }
 
   // ---------- main ----------
@@ -490,6 +518,7 @@
     const themeBtn = document.getElementById("themeToggle");
     const themeIcon = document.getElementById("themeIcon");
     updateThemeUI(themeBtn, themeIcon);
+
     if (themeBtn) {
       themeBtn.addEventListener("click", function () {
         const cur = document.documentElement.getAttribute("data-theme") || "dark";
@@ -505,6 +534,8 @@
     const musicIcon = document.getElementById("musicIcon");
 
     let startedBy = null;
+    let audioUnlocked = false;
+
     function setStartedBy(v) { startedBy = v; }
     function getStartedBy() { return startedBy; }
 
@@ -523,48 +554,95 @@
 
       if (markStartedBy) startedBy = markStartedBy;
 
-      const p = audio.play();
+      const playPromise = audio.play();
 
-      if (p && typeof p.then === "function") {
-        return p.then(() => {
-          setMusicUI(true);
-          return true;
-        }).catch(() => {
-          setMusicUI(false);
-          return false;
-        });
+      if (playPromise && typeof playPromise.then === "function") {
+        return playPromise
+          .then(() => {
+            setMusicUI(true);
+            return true;
+          })
+          .catch((err) => {
+            setMusicUI(false);
+            console.warn("Audio play blocked:", err);
+            return false;
+          });
       }
 
-      setMusicUI(!audio.paused);
-      return Promise.resolve(!audio.paused);
+      const ok = !audio.paused;
+      setMusicUI(ok);
+      return Promise.resolve(ok);
     }
 
     function pauseNow() {
-      if (!audio) { setMusicUI(false); return; }
-      try { audio.pause(); } catch (_) { }
+      if (!audio) {
+        setMusicUI(false);
+        return;
+      }
+      try {
+        audio.pause();
+      } catch (_) { }
       setMusicUI(false);
     }
 
     if (audio) {
+      try { audio.load(); } catch (_) { }
+
       const t = readTime();
-      const applyTime = () => { try { if (Number.isFinite(t) && t > 0) audio.currentTime = t; } catch (_) { } };
+      const applyTime = () => {
+        try {
+          if (Number.isFinite(t) && t > 0) audio.currentTime = t;
+        } catch (_) { }
+      };
+
       if (audio.readyState >= 1) applyTime();
       else audio.addEventListener("loadedmetadata", applyTime, { once: true });
 
       audio.addEventListener("play", function () { setMusicUI(true); });
       audio.addEventListener("pause", function () { setMusicUI(false); });
 
-      const tick = setInterval(function () { saveTime(audio); }, 800);
+      const tick = setInterval(function () {
+        saveTime(audio);
+      }, 800);
+
       window.addEventListener("pagehide", function () {
         saveTime(audio);
         try { clearInterval(tick); } catch (_) { }
       });
+
+      const unlockAudio = () => {
+        if (!audio || audioUnlocked) return;
+
+        const p = audio.play();
+        if (p && typeof p.then === "function") {
+          p.then(() => {
+            audioUnlocked = true;
+            audio.pause();
+            setMusicUI(false);
+          }).catch(() => { });
+        } else {
+          audioUnlocked = true;
+          try { audio.pause(); } catch (_) { }
+          setMusicUI(false);
+        }
+      };
+
+      document.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
+      document.addEventListener("click", unlockAudio, { once: true });
     }
 
     if (musicBtn && audio) {
-      musicBtn.addEventListener("click", async function () {
-        if (audio.paused) await playNow("manual");
-        else { pauseNow(); startedBy = null; }
+      musicBtn.addEventListener("click", function () {
+        if (audio.paused) {
+          playNow("manual").then((ok) => {
+            if (!ok) {
+              showToast("error", "Không thể phát nhạc trên thiết bị này lúc này.", 2600);
+            }
+          });
+        } else {
+          pauseNow();
+          startedBy = null;
+        }
       });
     } else {
       setMusicUI(false);
@@ -579,13 +657,20 @@
     // CERT VIEWER
     initCertViewer();
 
+    // MOBILE DRAWER
     initMobileDrawer();
 
     // CONTACT
     initContactFeature();
 
     // PJAX
-    initPJAX({ playNow, pauseNow, getStartedBy, setStartedBy });
+    initPJAX({
+      playNow,
+      pauseNow,
+      getStartedBy,
+      setStartedBy,
+      showToast
+    });
   });
 
 })();
