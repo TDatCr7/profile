@@ -53,11 +53,13 @@
       </button>
     </div>
 
-    <audio id="bgm" preload="auto" loop playsinline webkit-playsinline>
-      <source
-        src='{{ with site.Home.Params.songSrc }}{{ . | relURL }}{{ else }}{{ "audio/haokhiVN.mp3" | relURL }}{{ end }}'
-        type="audio/mpeg"
-      />
+    <audio
+      id="bgm"
+      preload="auto"
+      loop
+      playsinline
+      webkit-playsinline
+      src='{{ with site.Home.Params.songSrc }}{{ . | relURL }}{{ else }}{{ "audio/haokhiVN.mp3" | relURL }}{{ end }}'>
     </audio>
   </div>
 

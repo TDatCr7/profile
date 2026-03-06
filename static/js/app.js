@@ -464,11 +464,7 @@
       const clickedAbout = safeSSGet(SS_ABOUT_CLICK, "0") === "1";
       if (isAboutPath(u.pathname) && clickedAbout) {
         safeSSDel(SS_ABOUT_CLICK);
-        playNow("about").then((ok) => {
-          if (!ok) {
-            showToast("info", "iPhone chặn tự phát. Chạm nút nhạc để phát.", 2600);
-          }
-        });
+        showToast("info", "Chạm nút nhạc để phát.", 2200);
       }
 
       if (!isAboutPath(u.pathname) && getStartedBy() === "about") {
@@ -503,11 +499,7 @@
     const clicked = safeSSGet(SS_ABOUT_CLICK, "0") === "1";
     if (isAboutPath(p) && clicked) {
       safeSSDel(SS_ABOUT_CLICK);
-      playNow("about").then((ok) => {
-        if (!ok) {
-          showToast("info", "iPhone chặn tự phát. Chạm nút nhạc để phát.", 2600);
-        }
-      });
+      showToast("info", "Chạm nút nhạc để phát.", 2200);
     }
   }
 
@@ -534,7 +526,6 @@
     const musicIcon = document.getElementById("musicIcon");
 
     let startedBy = null;
-    let audioUnlocked = false;
 
     function setStartedBy(v) { startedBy = v; }
     function getStartedBy() { return startedBy; }
@@ -554,7 +545,14 @@
 
       if (markStartedBy) startedBy = markStartedBy;
 
-      const playPromise = audio.play();
+      let playPromise;
+      try {
+        playPromise = audio.play();
+      } catch (err) {
+        console.warn("Audio play threw:", err);
+        setMusicUI(false);
+        return Promise.resolve(false);
+      }
 
       if (playPromise && typeof playPromise.then === "function") {
         return playPromise
@@ -563,8 +561,8 @@
             return true;
           })
           .catch((err) => {
-            setMusicUI(false);
             console.warn("Audio play blocked:", err);
+            setMusicUI(false);
             return false;
           });
       }
@@ -598,8 +596,23 @@
       if (audio.readyState >= 1) applyTime();
       else audio.addEventListener("loadedmetadata", applyTime, { once: true });
 
-      audio.addEventListener("play", function () { setMusicUI(true); });
-      audio.addEventListener("pause", function () { setMusicUI(false); });
+      audio.addEventListener("play", function () {
+        setMusicUI(true);
+      });
+
+      audio.addEventListener("pause", function () {
+        setMusicUI(false);
+      });
+
+      audio.addEventListener("ended", function () {
+        setMusicUI(false);
+      });
+
+      audio.addEventListener("error", function () {
+        console.warn("Audio error:", audio.error);
+        setMusicUI(false);
+        showToast("error", "Không tải được file nhạc.", 2600);
+      });
 
       const tick = setInterval(function () {
         saveTime(audio);
@@ -609,26 +622,6 @@
         saveTime(audio);
         try { clearInterval(tick); } catch (_) { }
       });
-
-      const unlockAudio = () => {
-        if (!audio || audioUnlocked) return;
-
-        const p = audio.play();
-        if (p && typeof p.then === "function") {
-          p.then(() => {
-            audioUnlocked = true;
-            audio.pause();
-            setMusicUI(false);
-          }).catch(() => { });
-        } else {
-          audioUnlocked = true;
-          try { audio.pause(); } catch (_) { }
-          setMusicUI(false);
-        }
-      };
-
-      document.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
-      document.addEventListener("click", unlockAudio, { once: true });
     }
 
     if (musicBtn && audio) {
@@ -636,7 +629,7 @@
         if (audio.paused) {
           playNow("manual").then((ok) => {
             if (!ok) {
-              showToast("error", "Không thể phát nhạc trên thiết bị này lúc này.", 2600);
+              showToast("error", "Không thể phát nhạc. Kiểm tra file mp3 hoặc định dạng audio.", 3200);
             }
           });
         } else {
